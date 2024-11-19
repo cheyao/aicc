@@ -1,3 +1,8 @@
+#if !defined(OPENAI_API) || !defined(OPENAI_API_KEY)
+_Static_assert(0, "Please set the API key");
+#endif
+
+#include <curl/curl.h>
 #include <llvm-c/Analysis.h>
 #include <llvm-c/BitWriter.h>
 #include <llvm-c/Core.h>
@@ -9,6 +14,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define STRING(s) #s
 
 int main(int argc, char* argv[]) {
 	uint64_t fileCount = 0;
@@ -48,8 +55,56 @@ int main(int argc, char* argv[]) {
 	fclose(f);
 
 	// AI to LLVM
-	// API URL is in OPENAI_API
-	// API KEY is in OPENAI_API_KEY
+
+	// Fetch result with curl
+	curl_global_init(CURL_GLOBAL_ALL);
+	CURL* curl = curl_easy_init();
+	if (!curl) {
+		fprintf(stderr, "Failed to fetch data with curl");
+
+		free(buffer);
+
+		return 1;
+	}
+
+	char* start =
+		"{"
+		"\"model\": \"gpt-4o-mini\""
+		"\"messages\": \"[{\"role\": \"system\", \"content\": \"You are a compiler, compile the following "
+		"C code into LLVM IR.\"}, {\"role\": \"user\", \"content\": \"";
+	char* end = "\"}],\""
+		    "}";
+	char* data = malloc(strlen(start) + strlen(end) + strlen(buffer) + 1);
+
+	if (!data) {
+		free(buffer);
+
+		fprintf(stderr, "Failed to allocate memory for payload\n");
+
+		return 1;
+	}
+
+	strcpy(data, start);
+	strcat(data, buffer);
+	strcat(data, end);
+
+	curl_easy_setopt(curl, CURLOPT_URL, STRING(OPENAI_API));
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &internal_struct);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+
+	struct curl_slist* headers = NULL;
+	headers = curl_slist_append(headers, "Content-Type: application/json");
+	headers = curl_slist_append(headers, "accept: application/json");
+	headers = curl_slist_append(headers, "Authorization: Bearer " STRING(OPENAI_API_KEY));
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+	CURLcode success = curl_easy_perform(curl);
+	curl_slist_free_all(headers);
+
+	curl_easy_cleanup(curl);
+
+	free(buffer);
+	free(data);
 
 	// LLVM IR to C
 	LLVMInitializeNativeTarget();
@@ -113,8 +168,7 @@ int main(int argc, char* argv[]) {
 	outFname[len + 2] = 0;
 	outFname[len + 1] = 'o';
 	outFname[len] = '.';
-	if (LLVMTargetMachineEmitToFile(targetMachine, module, outFname, LLVMObjectFile, &errorMessage) !=
-	    0) {
+	if (LLVMTargetMachineEmitToFile(targetMachine, module, outFname, LLVMObjectFile, &errorMessage) != 0) {
 		fprintf(stderr, "Error emitting object file: %s\n", errorMessage);
 		LLVMDisposeMessage(errorMessage);
 		LLVMDisposeTargetMachine(targetMachine);
@@ -139,7 +193,7 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
-	free(buffer);
+	free(outFname);
 
 	return 0;
 }
