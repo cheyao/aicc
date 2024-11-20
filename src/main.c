@@ -18,16 +18,26 @@ _Static_assert(0, "Please set the API key");
 
 #include "cJSON.h"
 
+struct memory {
+	char* response;
+	size_t size;
+};
+
 size_t write_data(void* buffer, size_t size, size_t nmemb, void* userp) {
-	// Userp is char**
-	assert(size == 1 && "There is something wrong with your curl");
+	size_t realsize = size * nmemb;
+	struct memory* mem = (struct memory*)userp;
 
-	(void)userp;
+	char* ptr = realloc(mem->response, mem->size + realsize + 1);
+	if (!ptr) {
+		return 0; /* out of memory */
+	}
 
-	fwrite(buffer, 1, nmemb, stdout);
+	mem->response = ptr;
+	memcpy(&(mem->response[mem->size]), buffer, realsize);
+	mem->size += realsize;
+	mem->response[mem->size] = 0;
 
-	printf("Hey\n");
-	return size * nmemb;
+	return realsize;
 }
 
 int main(int argc, char* argv[]) {
@@ -89,7 +99,9 @@ int main(int argc, char* argv[]) {
 	cJSON_AddItemToArray(messages, systemo);
 
 	cJSON* role1 = cJSON_CreateString("system");
-	cJSON* content1 = cJSON_CreateString("You are a compiler, compile the following C code into LLVM IR with the maximum ammount of optimizations. Do not return any additional comments. Do not use code blocks. Return a raw string containing the code.");
+	cJSON* content1 = cJSON_CreateString("You are a compiler, compile the following C code into LLVM IR with the "
+					     "maximum ammount of optimizations. Do not return any additional comments. "
+					     "Do not use code blocks. Return a raw string containing the code.");
 	cJSON_AddItemToObject(systemo, "role", role1);
 	cJSON_AddItemToObject(systemo, "content", content1);
 
@@ -102,14 +114,13 @@ int main(int argc, char* argv[]) {
 	cJSON_AddItemToObject(user, "content", content2);
 
 	char* sdata = cJSON_Print(data);
-	fprintf(stderr, "%s", sdata);
+
 	curl_easy_setopt(curl, CURLOPT_URL, OPENAI_API);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, sdata);
 
-	char* out;
-
+	struct memory chunk = {0};
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &out);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 
 	struct curl_slist* headers = NULL;
 	headers = curl_slist_append(headers, "Content-Type: application/json");
@@ -128,7 +139,10 @@ int main(int argc, char* argv[]) {
 	curl_easy_cleanup(curl);
 
 	free(buffer);
-	free(data);
+	cJSON_Delete(data);
+
+	// Parse the response
+	free(chunk.response);
 
 	// LLVM IR to C
 	LLVMInitializeNativeTarget();
