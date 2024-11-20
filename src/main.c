@@ -80,21 +80,31 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
-	const char* start =
-		"{"
-		"\"model\": \"gpt-4o-mini\","
-		"\"messages\": [{\"role\": \"system\", \"content\": \"You are a compiler, compile the following "
-		"C code into LLVM IR.\"}, {\"role\": \"user\", \"content\": \"";
-	const char* end = "\"}]"
-			  "}";
-
 	cJSON* data = cJSON_CreateObject();
 	cJSON* model = cJSON_CreateString("gpt-4o-mini");
 	cJSON_AddItemToObject(data, "model", model);
 	cJSON* messages = cJSON_CreateArray();
+	cJSON_AddItemToObject(data, "messages", messages);
+	cJSON* systemo = cJSON_CreateObject();
+	cJSON_AddItemToArray(messages, systemo);
 
+	cJSON* role1 = cJSON_CreateString("system");
+	cJSON* content1 = cJSON_CreateString("You are a compiler, compile the following C code into LLVM IR with the maximum ammount of optimizations. Do not return any additional comments. Do not use code blocks. Return a raw string containing the code.");
+	cJSON_AddItemToObject(systemo, "role", role1);
+	cJSON_AddItemToObject(systemo, "content", content1);
+
+	cJSON* user = cJSON_CreateObject();
+	cJSON_AddItemToArray(messages, user);
+
+	cJSON* role2 = cJSON_CreateString("user");
+	cJSON* content2 = cJSON_CreateString(buffer);
+	cJSON_AddItemToObject(user, "role", role2);
+	cJSON_AddItemToObject(user, "content", content2);
+
+	char* sdata = cJSON_Print(data);
+	fprintf(stderr, "%s", sdata);
 	curl_easy_setopt(curl, CURLOPT_URL, OPENAI_API);
-	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, sdata);
 
 	char* out;
 
