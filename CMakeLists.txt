@@ -22,6 +22,8 @@ endif()
 
 set(SRC
 src/main.c
+src/cJSON.c
+src/cJSON.h
 )
 
 add_executable(aicc ${SRC})
@@ -34,7 +36,7 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
 	set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 	target_compile_options(aicc PRIVATE -Wall -Wextra -Werror -g -O0 -Wundef -Wshadow -Wpointer-arith -Wpointer-arith -Wwrite-strings -Wno-unknown-warning-option -fdiagnostics-color=always)
-	target_compile_definitions(aicc PRIVATE -DDEBUG -D_DEBUG -DOPENAI_API=${OPENAI_API} -DOPENAI_API_KEY=${OPENAI_API_KEY})
+	target_compile_definitions(aicc PRIVATE -DDEBUG -D_DEBUG -DOPENAI_API="${OPENAI_API}" -DOPENAI_API_KEY="${OPENAI_API_KEY}")
 else()
 	target_compile_options(aicc PRIVATE -O3)
 
@@ -52,6 +54,8 @@ else()
 		message(STATUS "IPO / LTO not supported: <${error}>")
 	endif()
 endif()
+
+target_include_directories(aicc PRIVATE src)
 
 target_include_directories(aicc PRIVATE ${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})

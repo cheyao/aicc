@@ -2,6 +2,7 @@
 _Static_assert(0, "Please set the API key");
 #endif
 
+#include <assert.h>
 #include <curl/curl.h>
 #include <llvm-c/Analysis.h>
 #include <llvm-c/BitWriter.h>
@@ -15,7 +16,19 @@ _Static_assert(0, "Please set the API key");
 #include <stdlib.h>
 #include <string.h>
 
-#define STRING(s) #s
+#include "cJSON.h"
+
+size_t write_data(void* buffer, size_t size, size_t nmemb, void* userp) {
+	// Userp is char**
+	assert(size == 1 && "There is something wrong with your curl");
+
+	(void)userp;
+
+	fwrite(buffer, 1, nmemb, stdout);
+
+	printf("Hey\n");
+	return size * nmemb;
+}
 
 int main(int argc, char* argv[]) {
 	uint64_t fileCount = 0;
@@ -67,40 +80,41 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
-	char* start =
+	const char* start =
 		"{"
-		"\"model\": \"gpt-4o-mini\""
-		"\"messages\": \"[{\"role\": \"system\", \"content\": \"You are a compiler, compile the following "
+		"\"model\": \"gpt-4o-mini\","
+		"\"messages\": [{\"role\": \"system\", \"content\": \"You are a compiler, compile the following "
 		"C code into LLVM IR.\"}, {\"role\": \"user\", \"content\": \"";
-	char* end = "\"}],\""
-		    "}";
-	char* data = malloc(strlen(start) + strlen(end) + strlen(buffer) + 1);
+	const char* end = "\"}]"
+			  "}";
 
-	if (!data) {
-		free(buffer);
+	cJSON* data = cJSON_CreateObject();
+	cJSON* model = cJSON_CreateString("gpt-4o-mini");
+	cJSON_AddItemToObject(data, "model", model);
+	cJSON* messages = cJSON_CreateArray();
 
-		fprintf(stderr, "Failed to allocate memory for payload\n");
-
-		return 1;
-	}
-
-	strcpy(data, start);
-	strcat(data, buffer);
-	strcat(data, end);
-
-	curl_easy_setopt(curl, CURLOPT_URL, STRING(OPENAI_API));
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &internal_struct);
+	curl_easy_setopt(curl, CURLOPT_URL, OPENAI_API);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+
+	char* out;
+
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &out);
 
 	struct curl_slist* headers = NULL;
 	headers = curl_slist_append(headers, "Content-Type: application/json");
 	headers = curl_slist_append(headers, "accept: application/json");
-	headers = curl_slist_append(headers, "Authorization: Bearer " STRING(OPENAI_API_KEY));
+	headers = curl_slist_append(headers, "Authorization: Bearer " OPENAI_API_KEY);
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 	CURLcode success = curl_easy_perform(curl);
-	curl_slist_free_all(headers);
 
+	if (success) {
+		fprintf(stderr, "Curl fetch failed with error %d", success);
+
+		return 1;
+	}
+
+	curl_slist_free_all(headers);
 	curl_easy_cleanup(curl);
 
 	free(buffer);
