@@ -99,7 +99,8 @@ int main(int argc, char* argv[]) {
 	cJSON_AddItemToArray(messages, systemo);
 
 	cJSON* role1 = cJSON_CreateString("system");
-	cJSON* content1 = cJSON_CreateString("You are a C compiler. Return code parsable by LLVMParseIRInContext.");
+	cJSON* content1 = cJSON_CreateString("You are a C compiler. Compile the C code to LLVM IR. "
+					     "Do not return code blocks nor any comments.");
 	cJSON_AddItemToObject(systemo, "role", role1);
 	cJSON_AddItemToObject(systemo, "content", content1);
 
@@ -108,17 +109,7 @@ int main(int argc, char* argv[]) {
 
 	cJSON* role2 = cJSON_CreateString("user");
 
-	const char* start = "Compile the following c code to llvm machine code:\n";
-	const char* end = "Only return llvm machine code, nothing else. No code blocks.";
-
-	char* code = malloc(strlen(start) + strlen(end) + strlen(buffer) + 1);
-	strcpy(code, start);
-	strcat(code, buffer);
-	strcat(code, end);
-
-	free(buffer);
-
-	cJSON* content2 = cJSON_CreateString(code);
+	cJSON* content2 = cJSON_CreateString(buffer);
 	cJSON_AddItemToObject(user, "role", role2);
 	cJSON_AddItemToObject(user, "content", content2);
 
@@ -147,7 +138,6 @@ int main(int argc, char* argv[]) {
 	curl_slist_free_all(headers);
 	curl_easy_cleanup(curl);
 
-	free(code);
 	cJSON_Delete(data);
 
 	// Parse the response
@@ -179,8 +169,6 @@ int main(int argc, char* argv[]) {
 
 	LLVMModuleRef module = LLVMModuleCreateWithNameInContext("hardcoded_ir", context);
 	char* errorMessage = NULL;
-
-	fprintf(stderr, "%s", out);
 
 	// Parse the IR string
 	if (LLVMParseIRInContext(context, LLVMCreateMemoryBufferWithMemoryRangeCopy(out, strlen(out), "hardcoded_ir"),
@@ -221,7 +209,7 @@ int main(int argc, char* argv[]) {
 		LLVMCreateTargetMachine(target, targetTriple,
 					"generic", // CPU
 					"",	   // Features
-					LLVMCodeGenLevelDefault, LLVMRelocDefault, LLVMCodeModelDefault);
+					LLVMCodeGenLevelDefault, LLVMRelocPIC, LLVMCodeModelDefault);
 
 	if (!targetMachine) {
 		fprintf(stderr, "Error creating target machine.\n");
@@ -256,7 +244,7 @@ int main(int argc, char* argv[]) {
 
 	// Use system command to link and create an executable
 	char command[256];
-	snprintf(command, sizeof(command), "clang %s -o a.out", outFname);
+	snprintf(command, sizeof(command), "clang %s -o a.out -lm -lX11 -L/usr/X11R6/lib", outFname);
 	if (system(command) != 0) {
 		fprintf(stderr, "Error linking object file into executable.\n");
 		return 1;
@@ -264,6 +252,8 @@ int main(int argc, char* argv[]) {
 
 	free(outFname);
 	cJSON_Delete(response);
+
+	printf("Successfully compiled binary. (a.out)\n");
 
 	return 0;
 }
