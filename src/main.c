@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	cJSON* data = cJSON_CreateObject();
-	cJSON* model = cJSON_CreateString("gpt-4o-mini");
+	cJSON* model = cJSON_CreateString("gpt-4o");
 	cJSON_AddItemToObject(data, "model", model);
 	cJSON* messages = cJSON_CreateArray();
 	cJSON_AddItemToObject(data, "messages", messages);
@@ -99,9 +99,7 @@ int main(int argc, char* argv[]) {
 	cJSON_AddItemToArray(messages, systemo);
 
 	cJSON* role1 = cJSON_CreateString("system");
-	cJSON* content1 = cJSON_CreateString("You are a compiler, compile the following C code into LLVM IR with the "
-					     "maximum ammount of optimizations. Do not return any additional comments. "
-					     "Do not use code blocks. Return a raw string containing the code.");
+	cJSON* content1 = cJSON_CreateString("You are a C compiler. Return code parsable by LLVMParseIRInContext.");
 	cJSON_AddItemToObject(systemo, "role", role1);
 	cJSON_AddItemToObject(systemo, "content", content1);
 
@@ -109,7 +107,18 @@ int main(int argc, char* argv[]) {
 	cJSON_AddItemToArray(messages, user);
 
 	cJSON* role2 = cJSON_CreateString("user");
-	cJSON* content2 = cJSON_CreateString(buffer);
+
+	const char* start = "Compile the following c code to llvm machine code:\n";
+	const char* end = "Only return llvm machine code, nothing else. No code blocks.";
+
+	char* code = malloc(strlen(start) + strlen(end) + strlen(buffer) + 1);
+	strcpy(code, start);
+	strcat(code, buffer);
+	strcat(code, end);
+
+	free(buffer);
+
+	cJSON* content2 = cJSON_CreateString(code);
 	cJSON_AddItemToObject(user, "role", role2);
 	cJSON_AddItemToObject(user, "content", content2);
 
@@ -138,11 +147,29 @@ int main(int argc, char* argv[]) {
 	curl_slist_free_all(headers);
 	curl_easy_cleanup(curl);
 
-	free(buffer);
+	free(code);
 	cJSON_Delete(data);
 
 	// Parse the response
-	free(chunk.response);
+	cJSON* response = cJSON_ParseWithLength(chunk.response, chunk.size);
+	if (response == NULL) {
+		const char* error_ptr = cJSON_GetErrorPtr();
+
+		if (error_ptr != NULL) {
+			fprintf(stderr, "Failed to parse API response json: %s\n", error_ptr);
+		}
+
+		return 1;
+	}
+	cJSON* choices = cJSON_GetObjectItemCaseSensitive(response, "choices");
+	cJSON* choice;
+	char* out = NULL;
+	cJSON_ArrayForEach(choice, choices) {
+		cJSON* message = cJSON_GetObjectItemCaseSensitive(choice, "message");
+		cJSON* content = cJSON_GetObjectItemCaseSensitive(message, "content");
+		out = content->valuestring;
+		break;
+	}
 
 	// LLVM IR to C
 	LLVMInitializeNativeTarget();
@@ -153,14 +180,18 @@ int main(int argc, char* argv[]) {
 	LLVMModuleRef module = LLVMModuleCreateWithNameInContext("hardcoded_ir", context);
 	char* errorMessage = NULL;
 
+	fprintf(stderr, "%s", out);
+
 	// Parse the IR string
-	if (LLVMParseIRInContext(context, LLVMCreateMemoryBufferWithMemoryRangeCopy(buffer, length, "hardcoded_ir"),
+	if (LLVMParseIRInContext(context, LLVMCreateMemoryBufferWithMemoryRangeCopy(out, strlen(out), "hardcoded_ir"),
 				 &module, &errorMessage) != 0) {
 		fprintf(stderr, "Error parsing IR: %s\n", errorMessage);
 		LLVMDisposeMessage(errorMessage);
 		LLVMContextDispose(context);
 		return 1;
 	}
+
+	free(chunk.response);
 
 	// Validate the IR module
 	if (LLVMVerifyModule(module, LLVMReturnStatusAction, &errorMessage) != 0) {
@@ -232,6 +263,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	free(outFname);
+	cJSON_Delete(response);
 
 	return 0;
 }
