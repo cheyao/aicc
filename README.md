@@ -5,3 +5,11 @@ Though `gcc` and `clang` are very usefull and advanced C compilers, they still h
 aicc [input]
 ```
 `aicc` uses AI to compile your code, which shall be forwarded to ChatGPT and optimized. Will your code compile? Will it be fast or slow? Will it have memory leaks? Leave it all to AI! You just need to make it understand what you want.
+
+## Building with Nix
+
+To build, get your OpenAI API key and run a nix build like this:
+```sh
+$ OPENAI_API_KEY=your_api_key nix build --impure
+```
+Remember to replace *your_api_key* with the API key you've created.
