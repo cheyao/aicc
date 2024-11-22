@@ -33,10 +33,11 @@ find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
+target_compile_definitions(aicc PRIVATE -DOPENAI_API="${OPENAI_API}" -DOPENAI_API_KEY="${OPENAI_API_KEY}")
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
 	set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 	target_compile_options(aicc PRIVATE -Wall -Wextra -Werror -g -O0 -Wundef -Wshadow -Wpointer-arith -Wpointer-arith -Wwrite-strings -Wno-unknown-warning-option -fdiagnostics-color=always)
-	target_compile_definitions(aicc PRIVATE -DDEBUG -D_DEBUG -DOPENAI_API="${OPENAI_API}" -DOPENAI_API_KEY="${OPENAI_API_KEY}")
+	target_compile_definitions(aicc PRIVATE -DDEBUG -D_DEBUG)
 else()
 	target_compile_options(aicc PRIVATE -O3)
 
