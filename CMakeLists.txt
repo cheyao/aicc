@@ -71,3 +71,5 @@ find_package(CURL REQUIRED)
 include_directories(${CURL_INCLUDE_DIR})
 target_link_libraries(aicc ${CURL_LIBRARIES})
 
+install(TARGETS aicc)
+
