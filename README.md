@@ -8,6 +8,8 @@ aicc [input]
 
 [Demo video](https://cloud-pch5l26jf-hack-club-bot.vercel.app/02024-11-21_19-57-23.mp4)
 
+_Note: This project is meant as a meme and should not be used in any serious context._
+
 ## Building
 
 Dependencies: LLVM, curl
