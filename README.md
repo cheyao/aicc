@@ -6,7 +6,7 @@ aicc [input]
 ```
 `aicc` uses AI to compile your code, which shall be forwarded to ChatGPT and optimized. Will your code compile? Will it be fast or slow? Will it have memory leaks? Leave it all to AI! You just need to make it understand what you want.
 
-[Demo video](https://cloud-pch5l26jf-hack-club-bot.vercel.app/02024-11-21_19-57-23.mp4)
+[Demo video](https://rawcdn.githack.com/cheyao/aicc/5a7d7ba761d698caeba3347351e11f99afdab419/assets/demo.mp4)
 
 _Note: This project is meant as a meme and should not be used in any serious context._
 
